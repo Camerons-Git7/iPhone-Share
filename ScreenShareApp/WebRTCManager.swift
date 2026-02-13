@@ -2,7 +2,7 @@ import Foundation
 import WebRTC
 import ReplayKit
 
-class WebRTCManager: ObservableObject {
+class WebRTCManager: NSObject, ObservableObject {
     @Published var isSharing = false
     @Published var roomId = ""
     @Published var status = "Ready"
@@ -40,7 +40,7 @@ class WebRTCManager: ObservableObject {
     private func showBroadcastPicker() {
         DispatchQueue.main.async {
             if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-               let rootViewController = windowScene.windows.first?.rootViewController {
+               let _ = windowScene.windows.first?.rootViewController {
                 
                 let pickerView = RPSystemBroadcastPickerView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
                 pickerView.preferredExtension = "com.yourapp.ScreenShareExtension"
