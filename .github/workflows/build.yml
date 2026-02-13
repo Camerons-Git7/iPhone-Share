@@ -34,18 +34,6 @@ jobs:
               CODE_SIGNING_ALLOWED: NO
             info:
               path: ScreenShareApp/Info.plist
-          ScreenShareExtension:
-            type: appExtension
-            platform: iOS
-            sources:
-              - ScreenShareExtension
-            settings:
-              PRODUCT_BUNDLE_IDENTIFIER: com.yourapp.screenshare.extension
-              CODE_SIGN_IDENTITY: ""
-              CODE_SIGNING_REQUIRED: NO
-              CODE_SIGNING_ALLOWED: NO
-            info:
-              path: ScreenShareExtension/Info.plist
         EOF
         xcodegen generate
         
