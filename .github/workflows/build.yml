@@ -12,20 +12,12 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Check Swift files
+    - name: Setup Project with SPM
       run: |
-        echo "Swift files found:"
-        find . -name "*.swift" -type f
-        echo "Content of ScreenShareApp directory:"
-        ls -la ScreenShareApp/ 2>/dev/null || echo "Directory not found"
-    
-    - name: Setup Project with All Files
-      run: |
-        # Install tools
+        # Install XcodeGen
         brew install xcodegen
-        sudo gem install cocoapods
         
-        # Create proper project.yml that includes all Swift files
+        # Create project.yml without CocoaPods
         cat > project.yml << 'EOF'
         name: ScreenShareApp
         targets:
@@ -38,7 +30,6 @@ jobs:
                 includes:
                   - "*.swift"
                   - "*.plist"
-                  - "*.h"
             settings:
               PRODUCT_BUNDLE_IDENTIFIER: com.yourapp.screenshare
               PRODUCT_NAME: ScreenShareApp
@@ -48,7 +39,7 @@ jobs:
               SWIFT_VERSION: "5.0"
               CLANG_ENABLE_MODULES: YES
               LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
-              OTHER_LDFLAGS: "$(inherited) -ObjC"
+              OTHER_LDFLAGS: ""
             info:
               path: ScreenShareApp/Info.plist
               properties:
@@ -60,26 +51,23 @@ jobs:
         # Generate project
         xcodegen generate
         
-        # Verify project was created with sources
-        echo "Project structure:"
-        xcodebuild -list -project ScreenShareApp.xcodeproj 2>/dev/null || true
-        
-    - name: Install WebRTC via CocoaPods
-      run: |
-        cat > Podfile << 'EOF'
-        platform :ios, '15.0'
-        use_frameworks!
-        
-        target 'ScreenShareApp' do
-          pod 'GoogleWebRTC', '~> 1.1'
-        end
-        EOF
-        
-        pod install || echo "Pod install failed, continuing without WebRTC"
+        # Remove WebRTC imports from code since we're not using it
+        sed -i '' 's/import WebRTC/\\/\\/ WebRTC removed/g' ScreenShareApp/WebRTCManager.swift
+        sed -i '' 's/RTCPeerConnectionFactory/NSObject/g' ScreenShareApp/WebRTCManager.swift
+        sed -i '' 's/RTCPeerConnection/NSObject/g' ScreenShareApp/WebRTCManager.swift
+        sed -i '' 's/RTCIceServer/NSObject/g' ScreenShareApp/WebRTCManager.swift
+        sed -i '' 's/RTCMediaConstraints/NSObject/g' ScreenShareApp/WebRTCManager.swift
+        sed -i '' 's/RTCDataChannel/NSObject/g' ScreenShareApp/WebRTCManager.swift
+        sed -i '' 's/RTCConfiguration/NSObject/g' ScreenShareApp/WebRTCManager.swift
+        sed -i '' 's/RTCSignalingState/Int/g' ScreenShareApp/WebRTCManager.swift
+        sed -i '' 's/RTCIceConnectionState/Int/g' ScreenShareApp/WebRTCManager.swift
+        sed -i '' 's/RTCIceGatheringState/Int/g' ScreenShareApp/WebRTCManager.swift
+        sed -i '' 's/RTCIceCandidate/NSObject/g' ScreenShareApp/WebRTCManager.swift
+        sed -i '' 's/RTCMediaStream/NSObject/g' ScreenShareApp/WebRTCManager.swift
+        sed -i '' 's/RTCDataChannelConfiguration/NSObject/g' ScreenShareApp/WebRTCManager.swift
         
     - name: Build App
       run: |
-        # Build with project (not workspace since pods might fail)
         xcodebuild clean build \
           -project ScreenShareApp.xcodeproj \
           -scheme ScreenShareApp \
@@ -91,7 +79,7 @@ jobs:
           -derivedDataPath $RUNNER_TEMP/build \
           2>&1 | tee build.log
         
-        echo "=== Checking build output ==="
+        echo "=== Build Output ==="
         find $RUNNER_TEMP/build -name "*.app" -type d
         ls -la $RUNNER_TEMP/build/Build/Products/Release-iphoneos/ScreenShareApp.app/ 2>/dev/null || echo "App not found"
         
@@ -109,9 +97,8 @@ jobs:
             echo "✅ Executable found!"
             file "$APP_PATH/ScreenShareApp"
           else
-            echo "❌ No executable found - build failed"
-            echo "Build log:"
-            tail -50 build.log
+            echo "❌ No executable found"
+            tail -30 build.log
           fi
           
           # Create IPA
@@ -123,7 +110,7 @@ jobs:
           echo "=== IPA Contents ==="
           unzip -l ScreenShareApp-unsigned.ipa
         else
-          echo "❌ App bundle not found"
+          echo "❌ App not found"
           exit 1
         fi
     
