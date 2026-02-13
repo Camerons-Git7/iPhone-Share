@@ -16,7 +16,7 @@ jobs:
       run: |
         brew install xcodegen
     
-    - name: Create Xcode Project
+    - name: Create Xcode Project with WebRTC
       run: |
         cat > project.yml << 'EOF'
         name: ScreenShareApp
@@ -27,15 +27,26 @@ jobs:
             deploymentTarget: "15.0"
             sources:
               - ScreenShareApp
+            dependencies:
+              - framework: WebRTC.framework
+                embed: true
             settings:
               PRODUCT_BUNDLE_IDENTIFIER: com.yourapp.screenshare
               CODE_SIGN_IDENTITY: ""
               CODE_SIGNING_REQUIRED: NO
               CODE_SIGNING_ALLOWED: NO
+              FRAMEWORK_SEARCH_PATHS: $(inherited) $(PROJECT_DIR)
             info:
               path: ScreenShareApp/Info.plist
         EOF
         xcodegen generate
+        
+    - name: Download WebRTC Framework
+      run: |
+        # Download pre-built WebRTC framework
+        curl -L -o webrtc.zip "https://github.com/alexpiezo/WebRTC/releases/download/95.4638.0/WebRTC.framework.zip"
+        unzip webrtc.zip
+        mv WebRTC.framework .
         
     - name: Build Unsigned App
       run: |
@@ -47,7 +58,8 @@ jobs:
           CODE_SIGN_IDENTITY="" \
           CODE_SIGNING_REQUIRED=NO \
           CODE_SIGNING_ALLOWED=NO \
-          -derivedDataPath $RUNNER_TEMP/build
+          -derivedDataPath $RUNNER_TEMP/build \
+          FRAMEWORK_SEARCH_PATHS="$(pwd)"
     
     - name: Create IPA
       run: |
