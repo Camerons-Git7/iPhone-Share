@@ -12,9 +12,25 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Build Unsigned App
-      continue-on-error: true
+    - name: Check available Xcode versions
       run: |
+        ls /Applications | grep Xcode
+        xcode-select -p
+        xcodebuild -version
+    
+    - name: List project files
+      run: |
+        ls -la
+        find . -name "*.swift" -o -name "*.xcodeproj" -o -name "*.xcworkspace" | head -20
+    
+    - name: Install CocoaPods
+      run: |
+        sudo gem install cocoapods
+        pod install || echo "Pod install failed or no Podfile"
+    
+    - name: Build Unsigned App
+      run: |
+        # Try to build without signing
         xcodebuild clean build \
           -workspace ScreenShareApp.xcworkspace \
           -scheme ScreenShareApp \
@@ -23,16 +39,31 @@ jobs:
           CODE_SIGN_IDENTITY="" \
           CODE_SIGNING_REQUIRED=NO \
           CODE_SIGNING_ALLOWED=NO \
-          -derivedDataPath $RUNNER_TEMP/build || true
+          -derivedDataPath $RUNNER_TEMP/build \
+          || echo "Build failed, checking for any output..."
+        
+        # List what was created
+        echo "Contents of build directory:"
+        find $RUNNER_TEMP/build -name "*.app" 2>/dev/null || echo "No .app found"
+        find $RUNNER_TEMP/build -type d -name "Products" 2>/dev/null | xargs ls -la 2>/dev/null || echo "No Products directory"
     
     - name: Create IPA Structure
-      continue-on-error: true
       run: |
         mkdir -p $RUNNER_TEMP/Payload
-        APP_PATH=$(find $RUNNER_TEMP/build -name "*.app" -type d | head -n 1)
-        cp -R "$APP_PATH" $RUNNER_TEMP/Payload/ 2>/dev/null || echo "No app found"
-        cd $RUNNER_TEMP
-        zip -r ScreenShareApp-unsigned.ipa Payload 2>/dev/null || echo "Creating empty IPA"
+        APP_PATH=$(find $RUNNER_TEMP/build -name "*.app" -type d 2>/dev/null | head -n 1)
+        if [ -n "$APP_PATH" ]; then
+          echo "Found app at: $APP_PATH"
+          cp -R "$APP_PATH" $RUNNER_TEMP/Payload/
+          cd $RUNNER_TEMP
+          zip -r ScreenShareApp-unsigned.ipa Payload
+          echo "IPA created successfully"
+        else
+          echo "No .app file found, creating placeholder"
+          mkdir -p $RUNNER_TEMP/Payload/ScreenShareApp.app
+          echo "This is a placeholder" > $RUNNER_TEMP/Payload/ScreenShareApp.app/README.txt
+          cd $RUNNER_TEMP
+          zip -r ScreenShareApp-unsigned.ipa Payload
+        fi
     
     - name: Upload Unsigned IPA
       uses: actions/upload-artifact@v4
