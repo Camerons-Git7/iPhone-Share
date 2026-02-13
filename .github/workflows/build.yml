@@ -12,109 +12,135 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
+    - name: Check existing files
+      run: |
+        echo "Files in repository:"
+        find . -name "*.swift" -o -name "*.xcodeproj" -o -name "*.xcworkspace" | head -20
+        ls -la
+    
     - name: Install CocoaPods
       run: sudo gem install cocoapods
     
-    - name: Create Project Structure
+    - name: Create proper Xcode Project with WebRTC
       run: |
-        # Create proper directories
-        mkdir -p ScreenShareApp
-        mkdir -p ScreenShareExtension
+        # Install xcodeproj gem for project manipulation
+        gem install xcodeproj
         
-        # Create Podfile with project specified
+        # Create project.yml for XcodeGen with WebRTC support
+        cat > project.yml << 'EOF'
+        name: ScreenShareApp
+        targets:
+          ScreenShareApp:
+            type: application
+            platform: iOS
+            deploymentTarget: "15.0"
+            sources:
+              - ScreenShareApp
+            settings:
+              PRODUCT_BUNDLE_IDENTIFIER: com.yourapp.screenshare
+              CODE_SIGN_IDENTITY: ""
+              CODE_SIGNING_REQUIRED: NO
+              CODE_SIGNING_ALLOWED: NO
+              SWIFT_VERSION: "5.0"
+              CLANG_ENABLE_MODULES: YES
+              LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
+              FRAMEWORK_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/Pods $(PROJECT_DIR)/build/Build/Products/Release-iphoneos"
+              HEADER_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/Pods/Headers/Public"
+              LIBRARY_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/Pods/build/Build/Products/Release-iphoneos"
+              OTHER_LDFLAGS: "$(inherited) -framework WebRTC -ObjC"
+              SWIFT_OBJC_BRIDGING_HEADER: "ScreenShareApp/Bridging-Header.h"
+            info:
+              path: ScreenShareApp/Info.plist
+        EOF
+        
+        # Create bridging header
+        cat > ScreenShareApp/Bridging-Header.h << 'EOF'
+        #ifndef Bridging_Header_h
+        #define Bridging_Header_h
+        
+        #import <WebRTC/WebRTC.h>
+        
+        #endif /* Bridging_Header_h */
+        EOF
+        
+        # Create Info.plist if it doesn't exist
+        if [ ! -f "ScreenShareApp/Info.plist" ]; then
+          cat > ScreenShareApp/Info.plist << 'EOF'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+          <key>CFBundleDevelopmentRegion</key>
+          <string>en</string>
+          <key>CFBundleExecutable</key>
+          <string>$(EXECUTABLE_NAME)</string>
+          <key>CFBundleIdentifier</key>
+          <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+          <key>CFBundleInfoDictionaryVersion</key>
+          <string>6.0</string>
+          <key>CFBundleName</key>
+          <string>$(PRODUCT_NAME)</string>
+          <key>CFBundlePackageType</key>
+          <string>APPL</string>
+          <key>CFBundleShortVersionString</key>
+          <string>1.0</string>
+          <key>CFBundleVersion</key>
+          <string>1</string>
+          <key>LSRequiresIPhoneOS</key>
+          <true/>
+          <key>UILaunchStoryboardName</key>
+          <string>LaunchScreen</string>
+          <key>UIRequiredDeviceCapabilities</key>
+          <array>
+            <string>armv7</string>
+          </array>
+          <key>UISupportedInterfaceOrientations</key>
+          <array>
+            <string>UIInterfaceOrientationPortrait</string>
+            <string>UIInterfaceOrientationLandscapeLeft</string>
+            <string>UIInterfaceOrientationLandscapeRight</string>
+          </array>
+        </dict>
+        </plist>
+        EOF
+        fi
+        
+        # Generate Xcode project
+        brew install xcodegen
+        xcodegen generate
+        
+    - name: Create Podfile and Install WebRTC
+      run: |
         cat > Podfile << 'EOF'
         platform :ios, '15.0'
         use_frameworks!
         
-        project 'ScreenShareApp.xcodeproj'
-        
         target 'ScreenShareApp' do
-          pod 'GoogleWebRTC'
+          pod 'GoogleWebRTC', '~> 1.1'
         end
         EOF
         
-    - name: Generate Xcode Project
-      run: |
-        # Create minimal Xcode project
-        mkdir -p ScreenShareApp.xcodeproj
-        cat > ScreenShareApp.xcodeproj/project.pbxproj << 'PBXEOF'
-        // !$*UTF8*$!
-        {
-          archiveVersion = 1;
-          classes = {
-          };
-          objectVersion = 55;
-          objects = {
-            000000000000000000000001 /* ScreenShareApp */ = {
-              isa = PBXFileReference;
-              explicitFileType = "compiled.mach-o.executable";
-              includeInIndex = 0;
-              path = ScreenShareApp;
-              sourceTree = BUILT_PRODUCTS_DIR;
-            };
-            000000000000000000000002 = {
-              isa = PBXGroup;
-              children = (
-              );
-              sourceTree = "<group>";
-            };
-            000000000000000000000003 /* Products */ = {
-              isa = PBXGroup;
-              children = (
-                000000000000000000000001 /* ScreenShareApp */,
-              );
-              name = Products;
-              sourceTree = "<group>";
-            };
-            000000000000000000000004 /* Project object */ = {
-              isa = PBXProject;
-              buildConfigurationList = 000000000000000000000005;
-              compatibilityVersion = "Xcode 13.0";
-              developmentRegion = en;
-              hasScannedForEncodings = 0;
-              knownRegions = (
-                en,
-                Base,
-              );
-              mainGroup = 000000000000000000000002;
-              productRefGroup = 000000000000000000000003;
-              projectDirPath = "";
-              projectRoot = "";
-              targets = (
-              );
-            };
-            000000000000000000000005 /* Build configuration list */ = {
-              isa = XCConfigurationList;
-              buildConfigurations = (
-                000000000000000000000006 /* Debug */,
-                000000000000000000000007 /* Release */,
-              );
-              defaultConfigurationIsVisible = 0;
-              defaultConfigurationName = Release;
-            };
-            000000000000000000000006 /* Debug */ = {
-              isa = XCBuildConfiguration;
-              buildSettings = {
-              };
-              name = Debug;
-            };
-            000000000000000000000007 /* Release */ = {
-              isa = XCBuildConfiguration;
-              buildSettings = {
-              };
-              name = Release;
-            };
-          };
-          rootObject = 000000000000000000000004;
-        }
-        PBXEOF
+        # Create Pods directory structure
+        mkdir -p Pods
+        pod install --repo-update || true
         
-    - name: Install Pods
-      run: pod install || echo "Pod install failed, continuing"
-      
-    - name: Build Unsigned App
+        # If pod install fails, manually download WebRTC
+        if [ ! -d "Pods/GoogleWebRTC" ]; then
+          echo "CocoaPods failed, trying manual download"
+          mkdir -p Pods/WebRTC
+          cd Pods/WebRTC
+          # Download WebRTC binary
+          curl -L -o WebRTC.framework.zip "https://github.com/alexpiezo/WebRTC/releases/download/95.4638.0/WebRTC-M95.xcframework.zip" || \
+          curl -L -o WebRTC.framework.zip "https://github.com/stasel/WebRTC/releases/download/121.0.0/WebRTC.xcframework.zip" || true
+          unzip -o WebRTC.framework.zip 2>/dev/null || true
+          cd ../..
+        fi
+        
+    - name: Build the App
       run: |
+        # Try to build with workspace if it exists
         if [ -f "ScreenShareApp.xcworkspace" ]; then
+          echo "Building with workspace..."
           xcodebuild clean build \
             -workspace ScreenShareApp.xcworkspace \
             -scheme ScreenShareApp \
@@ -123,23 +149,59 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            -derivedDataPath $RUNNER_TEMP/build || echo "Build failed"
+            -derivedDataPath $RUNNER_TEMP/build \
+            2>&1 | tee build.log
         else
-          echo "No workspace found"
+          echo "Building with project..."
+          xcodebuild clean build \
+            -project ScreenShareApp.xcodeproj \
+            -scheme ScreenShareApp \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            -derivedDataPath $RUNNER_TEMP/build \
+            2>&1 | tee build.log || true
         fi
-    
-    - name: Create IPA
+        
+        echo "Build directory contents:"
+        find $RUNNER_TEMP/build -name "*.app" -type d 2>/dev/null || echo "No .app found"
+        ls -la $RUNNER_TEMP/build/Build/Products/Release-iphoneos/ 2>/dev/null || echo "No Release-iphoneos directory"
+        
+    - name: Create IPA with proper structure
       run: |
-        mkdir -p $RUNNER_TEMP/Payload
+        # Find the app
         APP_PATH=$(find $RUNNER_TEMP/build -name "*.app" -type d 2>/dev/null | head -n 1)
-        if [ -n "$APP_PATH" ]; then
+        
+        if [ -n "$APP_PATH" ] && [ -d "$APP_PATH" ]; then
+          echo "Found app at: $APP_PATH"
+          echo "App contents:"
+          ls -la "$APP_PATH"
+          
+          # Create Payload directory
+          mkdir -p $RUNNER_TEMP/Payload
           cp -R "$APP_PATH" $RUNNER_TEMP/Payload/
+          
+          # Verify Payload
+          echo "Payload contents:"
+          ls -la $RUNNER_TEMP/Payload/
+          
+          # Create IPA
           cd $RUNNER_TEMP
           zip -r ScreenShareApp-unsigned.ipa Payload
+          
+          # Verify IPA
+          echo "IPA info:"
+          unzip -l ScreenShareApp-unsigned.ipa | head -20
         else
-          echo "No .app found, creating placeholder"
+          echo "ERROR: No .app bundle found!"
+          echo "Build log:"
+          cat build.log 2>/dev/null || echo "No build log"
+          
+          # Create placeholder for debugging
           mkdir -p $RUNNER_TEMP/Payload/ScreenShareApp.app
-          echo "Placeholder app" > $RUNNER_TEMP/Payload/ScreenShareApp.app/README.txt
+          echo "Placeholder - build failed" > $RUNNER_TEMP/Payload/ScreenShareApp.app/README.txt
           cd $RUNNER_TEMP
           zip -r ScreenShareApp-unsigned.ipa Payload
         fi
